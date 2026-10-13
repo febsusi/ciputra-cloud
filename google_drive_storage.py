@@ -1,24 +1,11 @@
-"""Private Google Drive storage adapter for Railway deployments.
-
-Files are uploaded by a dedicated Google account authorized through OAuth.
-The app never creates public sharing permissions. Firebase remains the identity
-and metadata database; Drive stores the binary file contents.
-"""
-import base64
-import io
-import json
 import os
-from functools import lru_cache
+import io
 
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload
-
-# drive.file is intentionally narrower than full Drive access. The setup script
-# creates the storage folder using this same OAuth client, so the app can access it.
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+from googleapiclient.errors import HttpError
 
 
 class GoogleDriveStorageError(Exception):
@@ -26,109 +13,140 @@ class GoogleDriveStorageError(Exception):
 
 
 class GoogleDriveStorage:
-    def __init__(self, folder_id=""):
-        self.folder_id = (folder_id or "").strip()
+    SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
-    def _service(self):
-        encoded = os.getenv("GOOGLE_DRIVE_TOKEN_JSON_B64", "").strip()
-        if not encoded:
-            raise GoogleDriveStorageError(
-                "Google Drive belum dikonfigurasi. Jalankan setup_google_drive.py dan isi "
-                "GOOGLE_DRIVE_TOKEN_JSON_B64 serta GOOGLE_DRIVE_FOLDER_ID di Railway Variables."
-            )
+    def __init__(self, folder_id):
+        self.folder_id = (folder_id or "").strip()
+        self.service = None
+
         if not self.folder_id:
-            raise GoogleDriveStorageError("GOOGLE_DRIVE_FOLDER_ID belum diatur di Railway Variables.")
-        try:
-            token_info = json.loads(base64.b64decode(encoded).decode("utf-8"))
-            creds = Credentials.from_authorized_user_info(token_info, scopes=SCOPES)
-            if not creds.valid:
-                if creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-                else:
-                    raise GoogleDriveStorageError(
-                        "Token Google Drive tidak valid atau tidak memiliki refresh token. Jalankan ulang setup_google_drive.py."
-                    )
-            return build("drive", "v3", credentials=creds, cache_discovery=False)
-        except GoogleDriveStorageError:
-            raise
-        except Exception as exc:
             raise GoogleDriveStorageError(
-                "Gagal menginisialisasi Google Drive. Periksa token OAuth dan konfigurasi Railway."
+                "GOOGLE_DRIVE_FOLDER_ID belum diatur di Railway."
+            )
+
+        client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+        refresh_token = os.getenv("GOOGLE_REFRESH_TOKEN", "").strip()
+
+        if not client_id or not client_secret or not refresh_token:
+            raise GoogleDriveStorageError(
+                "OAuth Google Drive belum lengkap. Periksa "
+                "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, "
+                "dan GOOGLE_REFRESH_TOKEN."
+            )
+
+        try:
+            credentials = Credentials(
+                token=None,
+                refresh_token=refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=client_id,
+                client_secret=client_secret,
+                scopes=self.SCOPES,
+            )
+
+            credentials.refresh(Request())
+
+            self.service = build(
+                "drive",
+                "v3",
+                credentials=credentials,
+                cache_discovery=False,
+            )
+
+            # Verify that the configured folder is accessible.
+            self.service.files().get(
+                fileId=self.folder_id,
+                fields="id,name,mimeType",
+                supportsAllDrives=True,
+            ).execute()
+
+        except Exception as exc:
+            self.service = None
+            raise GoogleDriveStorageError(
+                "Gagal menginisialisasi Google Drive. "
+                "Periksa OAuth, refresh token, izin folder, "
+                "dan konfigurasi Railway."
             ) from exc
 
-    def upload(self, uid, category, object_id, original_filename, data, content_type, id_token=None):
-        if not uid:
-            raise GoogleDriveStorageError("UID pengguna tidak tersedia; file tidak diunggah.")
-        if not data:
-            raise GoogleDriveStorageError("File kosong tidak dapat diunggah.")
-        service = self._service()
+    def upload(
+        self,
+        uid,
+        category,
+        object_id,
+        original_filename,
+        data,
+        content_type,
+        id_token=None,
+    ):
+        if not self.service:
+            raise GoogleDriveStorageError(
+                "Koneksi Google Drive belum tersedia."
+            )
+
+        # Separate files by user and category.
+        safe_name = os.path.basename(original_filename)
+        filename = f"{object_id}_{safe_name}"
+
         metadata = {
-            "name": original_filename,
-            "mimeType": content_type or "application/octet-stream",
+            "name": filename,
+            "mimeType": content_type,
             "parents": [self.folder_id],
             "appProperties": {
-                "owner_uid": str(uid),
+                "uid": str(uid),
                 "category": str(category),
                 "object_id": str(object_id),
-                "app": "ai-resume-hr-platform",
             },
         }
+
         media = MediaIoBaseUpload(
             io.BytesIO(data),
-            mimetype=content_type or "application/octet-stream",
-            resumable=False,
+            mimetype=content_type,
+            resumable=True,
         )
+
         try:
-            created = service.files().create(
+            result = self.service.files().create(
                 body=metadata,
                 media_body=media,
-                fields="id,name,mimeType",
-            ).execute(num_retries=2)
-            # The path is an opaque internal identifier, not a public URL.
-            return "gdrive:" + created["id"]
+                fields="id,name",
+                supportsAllDrives=True,
+            ).execute()
+
+            # Store the Drive file ID, not a public URL.
+            return result["id"]
+
         except HttpError as exc:
-            status = getattr(exc.resp, "status", "?")
-            if status in (401, 403):
-                raise GoogleDriveStorageError(
-                    "Google Drive menolak akses. Periksa token OAuth, izin Drive API, dan folder tujuan."
-                ) from exc
-            raise GoogleDriveStorageError(f"Upload Google Drive gagal (HTTP {status}).") from exc
-        except GoogleDriveStorageError:
-            raise
-        except Exception as exc:
-            raise GoogleDriveStorageError("Gagal mengunggah file ke Google Drive.") from exc
+            raise GoogleDriveStorageError(
+                "Gagal mengunggah file ke Google Drive."
+            ) from exc
 
     def delete(self, storage_path, id_token=None, uid=None):
-        if not storage_path:
+        if not self.service or not storage_path:
             return
-        # Gracefully ignore legacy Firebase Storage paths during provider migration.
-        # This app will not delete a file from a different provider.
-        if not str(storage_path).startswith("gdrive:"):
-            return
-        file_id = str(storage_path)[len("gdrive:"):]
-        if not file_id:
-            return
-        service = self._service()
+
         try:
-            # Verify the file belongs to the current UID before deletion.
-            existing = service.files().get(
-                fileId=file_id,
-                fields="id,appProperties,trashed",
+            # Verify ownership before deleting.
+            result = self.service.files().get(
+                fileId=storage_path,
+                fields="id,appProperties",
+                supportsAllDrives=True,
             ).execute()
-            properties = existing.get("appProperties") or {}
-            if uid and properties.get("owner_uid") != str(uid):
-                raise GoogleDriveStorageError("Akses ditolak: file Google Drive bukan milik pengguna ini.")
-            service.files().delete(fileId=file_id).execute()
+
+            properties = result.get("appProperties", {})
+            if uid is not None and properties.get("uid") != str(uid):
+                raise GoogleDriveStorageError(
+                    "Tidak memiliki izin menghapus file ini."
+                )
+
+            self.service.files().delete(
+                fileId=storage_path,
+                supportsAllDrives=True,
+            ).execute()
+
         except GoogleDriveStorageError:
             raise
         except HttpError as exc:
-            status = getattr(exc.resp, "status", "?")
-            if status == 404:
-                return
-            if status in (401, 403):
-                raise GoogleDriveStorageError(
-                    "Google Drive menolak penghapusan. Periksa token OAuth dan izin file."
-                ) from exc
-            raise GoogleDriveStorageError(f"Penghapusan Google Drive gagal (HTTP {status}).") from exc
-        except Exception as exc:
-            raise GoogleDriveStorageError("Gagal menghapus file dari Google Drive.") from exc
+            raise GoogleDriveStorageError(
+                "Gagal menghapus file Google Drive."
+            ) from exc

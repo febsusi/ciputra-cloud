@@ -11,6 +11,3 @@ pdf2image>=1.17
 numpy>=1.26
 Flask-Session>=0.8,<1.0
 gunicorn>=22,<24
-google-api-python-client>=2.130,<3.0
-google-auth>=2.29,<3.0
-google-auth-oauthlib>=1.2,<2.0

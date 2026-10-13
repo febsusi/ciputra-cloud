@@ -10,9 +10,6 @@ Aplikasi rekrutmen dengan:
 - Ekspor hasil ranking ke CSV.
 - AI Policy Assistant : unggah PDF/DOCX/TXT dan cari kutipan kebijakan menggunakan TF-IDF + cosine similarity.
 
-# Deploy ke Railway dengan Google Drive sebagai penyimpanan file
-
-
 ```bash
 pip install -r requirements.txt
 ```

@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block title %}Dashboard · Resume AI{% endblock %}
+{% block content %}
+<section class="dashboard-welcome mb-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
+    <div><h1 class="display-6 fw-bold mt-2 mb-2"><span class="welcome-dot"> recruitment.ai</span></h1><p class="muted mb-0">Created By Febriyeni Susi</p></div>
+    <a class="btn btn-primary" href="{{ url_for('rank') }}"><span class="me-2"></span>Mulai AI Ranking <span class="ms-2">→</span></a>
+  </div>
+</section>
+<div class="row g-3 mb-4 dashboard-stats">
+  <div class="col-sm-6 col-xl-4"><div class="stat-card"><div class="stat-icon">▤</div><div class="stat-label">Total lowongan</div><div class="stat-number">{{ jobs|length }}</div><a href="{{ url_for('jobs') }}">Lihat lowongan <span>↗</span></a></div></div>
+  <div class="col-sm-6 col-xl-4"><div class="stat-card"><div class="stat-icon">♙</div><div class="stat-label">Profil kandidat</div><div class="stat-number">{{ candidates|length }}</div><a href="{{ url_for('candidates') }}">Lihat kandidat <span>↗</span></a></div></div>
+  <div class="col-sm-6 col-xl-4"><div class="stat-card"><div class="stat-icon">◷</div><div class="stat-label">Riwayat ranking terbaru</div><div class="stat-number">{{ recent|length }}</div><a href="{{ url_for('rankings') }}">Lihat riwayat <span>↗</span></a></div></div>
+</div>
+<section class="card-soft dashboard-history">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><div><span class="eyebrow">ACTIVITY</span><h2 class="h5 fw-bold mt-2 mb-0">Aktivitas ranking terbaru</h2></div><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('rankings') }}">Semua riwayat <span class="ms-1">→</span></a></div>
+  {% if recent %}<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Lowongan</th><th>Waktu analisis</th><th>Kandidat dinilai</th><th>Status</th></tr></thead><tbody>{% for r in recent %}<tr><td><strong>{{ r.get('job_title','-') }}</strong></td><td><span class="muted">{{ r.get('created_at','')[:19].replace('T',' ') }}</span></td><td>{{ r.get('results',[])|length }} kandidat</td><td><span class="activity-status"><span></span>Tersimpan</span></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state"><div class="empty-state-icon">◷</div><h3 class="h6 fw-bold">Belum ada aktivitas ranking</h3><p class="muted mb-3"></p><a class="btn btn-primary btn-sm" href="{{ url_for('rank') }}">Mulai analisis <span class="ms-1">→</span></a></div>{% endif %}
+</section>
+{% endblock %}

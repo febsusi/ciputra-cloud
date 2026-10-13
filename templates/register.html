@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Register · recruitment.ai{% endblock %}
+{% block content %}<div class="auth-wrap"><div class="auth-card"><h2 class="fw-bold">Register</h2><p class="muted">Tautan verifikasi akan dikirim ke spam/email Anda.</p>
+<form method="post"><div class="mb-3"><label class="form-label">Nama</label><input name="name" class="form-control" required autocomplete="name"></div>
+<div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control" required autocomplete="email"></div>
+<div class="mb-3"><label class="form-label">Password</label><input type="password" name="password" class="form-control" minlength="6" required autocomplete="new-password"><div class="form-text">Minimal 6 karakter.</div></div>
+<button class="btn btn-primary w-100">Register & kirim verifikasi</button></form><hr><p class="small muted mb-0">Sudah punya akun? <a href="{{ url_for('login') }}">Login</a></p>
+</div></div>{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Edit lowongan{% endblock %}
+{% block content %}<div class="narrow"><div class="card-soft"><h2 class="h3 fw-bold">Edit lowongan</h2><form method="post">
+<div class="mb-3"><label class="form-label">Judul</label><input name="title" class="form-control" value="{{ job.get('title','') }}" required></div>
+<div class="mb-3"><label class="form-label">Deskripsi</label><textarea name="description" rows="6" class="form-control" required>{{ job.get('description','') }}</textarea></div>
+<div class="mb-3"><label class="form-label">Skill wajib (pisahkan koma)</label><input name="required_skills" class="form-control" value="{{ job.get('required_skills',[])|join(', ') }}"></div>
+<div class="mb-3"><label class="form-label">Pendidikan minimum</label><select name="min_education" class="form-select">{% for e in ['SMA','D3','S1','S2','S3'] %}<option {% if job.get('min_education','SMA')==e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></div>
+<button class="btn btn-primary">Simpan perubahan</button> <a class="btn btn-outline-secondary" href="{{ url_for('jobs') }}">Batal</a></form></div></div>{% endblock %}

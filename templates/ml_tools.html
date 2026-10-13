@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}AI Tools — AI Resume Ranker
+<div class="row g-4 mt-1">
+  <div class="col-lg-6"><section class="panel-card h-100">
+    <span class="eyebrow">FITUR ML 03</span><h2 class="h4 fw-bold mt-2">AI CV Quality Analyzer</h2>
+    <p class="text-muted">Audit kualitas CV menggunakan NLP dan rubrik heuristik yang transparan: kelengkapan bagian, panjang teks, kata kerja tindakan, serta bukti pencapaian terukur.</p>
+    <form method="post"><input type="hidden" name="action" value="cv_quality">
+      <label class="form-label">Kandidat</label><select class="form-select mb-3" name="candidate_id" required><option value="">Pilih kandidat...</option>{% for c in candidates %}<option value="{{ c.id }}">{{ c.name }}{% if c.email %} — {{ c.email }}{% endif %}</option>{% endfor %}</select>
+      <button class="btn btn-primary" {% if not candidates %}disabled{% endif %}>Analisis kualitas CV</button>
+    </form>
+    {% if quality_result %}<div class="result-box mt-4">
+      <div class="d-flex justify-content-between align-items-center"><b>{{ quality_result.candidate_name }}</b><span class="badge text-bg-light">{{ quality_result.score }}/100</span></div>
+      <div class="progress score-progress mt-3"><div class="progress-bar" style="width:{{ quality_result.score }}%"></div></div>
+      <div class="row g-3 mt-2"><div class="col-6"><div class="small text-muted">Jumlah kata</div><div class="h5 fw-bold">{{ quality_result.word_count }}</div></div><div class="col-6"><div class="small text-muted">Bagian terdeteksi</div><div class="h5 fw-bold">{{ quality_result.sections_present }}/{{ quality_result.section_total }}</div></div><div class="col-6"><div class="small text-muted">Bukti terukur</div><div class="h5 fw-bold">{{ quality_result.quantified_evidence }}</div></div><div class="col-6"><div class="small text-muted">Kata kerja tindakan</div><div class="h5 fw-bold">{{ quality_result.action_verb_count }}</div></div></div>
+      <hr><b>Pemeriksaan bagian CV</b><div class="d-flex flex-wrap gap-2 mt-2">{% for label, present in quality_result.sections.items() %}<span class="badge {% if present %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ label }}: {% if present %}terdeteksi{% else %}belum terdeteksi{% endif %}</span>{% endfor %}</div>
+      <hr><b>Rekomendasi</b>{% if quality_result.recommendations %}<ul class="small mt-2">{% for item in quality_result.recommendations %}<li>{{ item }}</li>{% endfor %}</ul>{% else %}<p class="small mt-2">Tidak ada rekomendasi dasar dari pemeriksaan ini.</p>{% endif %}<p class="small text-muted mb-0">{{ quality_result.note }}</p>
+    </div>{% endif %}
+  </section></div>
+  <div class="col-lg-6"><section class="panel-card h-100">
+    <span class="eyebrow">FITUR ML 04</span><h2 class="h4 fw-bold mt-2">AI CV Consistency Checker</h2>
+    <p class="text-muted">Menggunakan NLP dan deteksi pola untuk menemukan beberapa kontak, rentang tanggal terbalik atau tumpang tindih, serta klaim durasi pengalaman yang perlu dikonfirmasi.</p>
+    <form method="post"><input type="hidden" name="action" value="cv_consistency">
+      <label class="form-label">Kandidat</label><select class="form-select mb-3" name="candidate_id" required><option value="">Pilih kandidat...</option>{% for c in candidates %}<option value="{{ c.id }}">{{ c.name }}{% if c.email %} — {{ c.email }}{% endif %}</option>{% endfor %}</select>
+      <button class="btn btn-primary" {% if not candidates %}disabled{% endif %}>Periksa konsistensi CV</button>
+    </form>
+    {% if consistency_result %}<div class="mt-4"><div class="d-flex justify-content-between align-items-center"><b>{{ consistency_result.candidate_name }}</b><span class="badge text-bg-light">{{ consistency_result.date_ranges_found }} rentang tanggal</span></div>
+      {% for flag in consistency_result.flags %}<div class="cluster-card mt-3"><div class="d-flex gap-2 align-items-start"><span class="badge {% if flag.level == 'warning' %}text-bg-warning{% elif flag.level == 'success' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if flag.level == 'warning' %}Periksa{% elif flag.level == 'success' %}Info{% else %}Catatan{% endif %}</span><div><b>{{ flag.title }}</b><p class="small text-muted mb-0 mt-1">{{ flag.detail }}</p></div></div></div>{% endfor %}
+      <p class="small text-muted mt-3 mb-0">{{ consistency_result.note }}</p>
+    </div>{% endif %}
+  </section></div>
+</div>
+
+{% endblock %}
+{% block content %}
+<div class="page-heading"><span class="eyebrow">PRACTICAL MACHINE LEARNING</span><h1 class="h2 fw-bold mt-2">AI Tools untuk Rekrutmen</h1><p class="text-muted">Analisis skill, kemiripan dokumen, kualitas CV, dan pemeriksaan konsistensi informasi.</p></div>
+<div class="row g-4">
+  <div class="col-lg-6"><section class="panel-card h-100">
+    <span class="eyebrow">FITUR ML 01</span><h2 class="h4 fw-bold mt-2">Skill Gap Analysis</h2>
+    <p class="text-muted">Bandingkan isi CV dengan skill yang diminta lowongan. Sistem menggunakan ekstraksi skill dan TF-IDF untuk menilai cakupan skill serta kemiripan teks.</p>
+    <form method="post"><input type="hidden" name="action" value="skill_gap">
+      <label class="form-label">Lowongan</label><select class="form-select mb-3" name="job_id" required><option value="">Pilih lowongan...</option>{% for job in jobs %}<option value="{{ job.id }}">{{ job.title }}</option>{% endfor %}</select>
+      <label class="form-label">Kandidat</label><select class="form-select mb-3" name="candidate_id" required><option value="">Pilih kandidat...</option>{% for c in candidates %}<option value="{{ c.id }}">{{ c.name }}{% if c.email %} — {{ c.email }}{% endif %}</option>{% endfor %}</select>
+      <button class="btn btn-primary" {% if not jobs or not candidates %}disabled{% endif %}>Analisis gap skill</button>
+    </form>
+    {% if gap_result %}<div class="result-box mt-4"><div class="d-flex justify-content-between"><b>{{ gap_result.candidate_name }}</b><span class="badge text-bg-light">{{ gap_result.job_title }}</span></div>
+      <div class="row g-3 mt-1"><div class="col-6"><div class="small text-muted">Cakupan skill</div><div class="h3 fw-bold">{{ gap_result.skill_coverage }}%</div></div><div class="col-6"><div class="small text-muted">Kemiripan teks CV</div><div class="h3 fw-bold">{{ gap_result.text_similarity }}%</div></div></div>
+      <div class="progress score-progress mt-1"><div class="progress-bar" style="width:{{ gap_result.skill_coverage }}%"></div></div>
+      <hr><b>Skill yang cocok ({{ gap_result.matched_count }})</b><p class="small mt-2">{% if gap_result.matched_skills %}{% for skill in gap_result.matched_skills %}<span class="badge text-bg-success me-1 mb-1">{{ skill }}</span>{% endfor %}{% else %}<span class="text-muted">Belum ada skill yang cocok terdeteksi.</span>{% endif %}</p>
+      <b>Skill yang belum terdeteksi ({{ gap_result.missing_skills|length }})</b><p class="small mt-2">{% if gap_result.missing_skills %}{% for skill in gap_result.missing_skills %}<span class="badge text-bg-warning me-1 mb-1">{{ skill }}</span>{% endfor %}{% else %}<span class="text-muted">Semua skill lowongan terdeteksi di profil.</span>{% endif %}</p>
+      {% if gap_result.suggestions %}<b>Saran perbaikan CV</b><ul class="small mt-2">{% for suggestion in gap_result.suggestions %}<li>{{ suggestion }}</li>{% endfor %}</ul>{% endif %}<p class="small text-muted mb-0">{{ gap_result.note }}</p>
+    </div>{% endif %}
+  </section></div>
+  <div class="col-lg-6"><section class="panel-card h-100">
+    <span class="eyebrow">FITUR ML 02</span><h2 class="h4 fw-bold mt-2">Deteksi CV Duplikat / Sangat Mirip</h2>
+    <p class="text-muted">TF-IDF dan cosine similarity membandingkan teks CV kandidat untuk menandai kemungkinan pengiriman CV yang sama atau sangat mirip.</p>
+    <div class="notice-box mb-3"><b>{{ candidates|length }} profil kandidat</b><br><span class="small">Gunakan minimal dua kandidat yang CV-nya berhasil diekstrak.</span></div>
+    <form method="post"><input type="hidden" name="action" value="duplicate_check"><button class="btn btn-primary" {% if candidates|length < 2 %}disabled{% endif %}>Periksa kemiripan CV</button></form>
+    {% if duplicate_result %}<div class="mt-4"><div class="small text-muted mb-2">{{ duplicate_result.message }}</div>{% if duplicate_result.pairs %}{% for pair in duplicate_result.pairs %}<div class="cluster-card mb-3"><div class="d-flex justify-content-between align-items-center"><span class="badge {% if pair.similarity >= 88 %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ pair.level }}</span><b>{{ pair.similarity }}%</b></div><div class="row mt-2"><div class="col-5"><b>{{ pair.name_a }}</b><div class="small text-muted">{{ pair.email_a }}</div></div><div class="col-2 text-center text-muted">↔</div><div class="col-5"><b>{{ pair.name_b }}</b><div class="small text-muted">{{ pair.email_b }}</div></div></div></div>{% endfor %}{% else %}<div class="notice-box">Tidak ada pasangan CV yang melewati ambang kemiripan {{ duplicate_result.threshold }}%.</div>{% endif %}</div>{% endif %}
+    <p class="small text-muted mt-3 mb-0">Kemiripan tinggi bukan bukti kecurangan. Periksa secara manual sebelum menggabungkan atau menghapus profil.</p>
+  </section></div>
+</div>
+
+<div class="row g-4 mt-1">
+  <div class="col-lg-6"><section class="panel-card h-100">
+    <span class="eyebrow">FITUR ML 03</span><h2 class="h4 fw-bold mt-2">AI CV Quality Analyzer</h2>
+    <p class="text-muted">Audit kualitas CV menggunakan NLP dan rubrik heuristik yang transparan: kelengkapan bagian, panjang teks, kata kerja tindakan, serta bukti pencapaian terukur.</p>
+    <form method="post"><input type="hidden" name="action" value="cv_quality">
+      <label class="form-label">Kandidat</label><select class="form-select mb-3" name="candidate_id" required><option value="">Pilih kandidat...</option>{% for c in candidates %}<option value="{{ c.id }}">{{ c.name }}{% if c.email %} — {{ c.email }}{% endif %}</option>{% endfor %}</select>
+      <button class="btn btn-primary" {% if not candidates %}disabled{% endif %}>Analisis kualitas CV</button>
+    </form>
+    {% if quality_result %}<div class="result-box mt-4">
+      <div class="d-flex justify-content-between align-items-center"><b>{{ quality_result.candidate_name }}</b><span class="badge text-bg-light">{{ quality_result.score }}/100</span></div>
+      <div class="progress score-progress mt-3"><div class="progress-bar" style="width:{{ quality_result.score }}%"></div></div>
+      <div class="row g-3 mt-2"><div class="col-6"><div class="small text-muted">Jumlah kata</div><div class="h5 fw-bold">{{ quality_result.word_count }}</div></div><div class="col-6"><div class="small text-muted">Bagian terdeteksi</div><div class="h5 fw-bold">{{ quality_result.sections_present }}/{{ quality_result.section_total }}</div></div><div class="col-6"><div class="small text-muted">Bukti terukur</div><div class="h5 fw-bold">{{ quality_result.quantified_evidence }}</div></div><div class="col-6"><div class="small text-muted">Kata kerja tindakan</div><div class="h5 fw-bold">{{ quality_result.action_verb_count }}</div></div></div>
+      <hr><b>Pemeriksaan bagian CV</b><div class="d-flex flex-wrap gap-2 mt-2">{% for label, present in quality_result.sections.items() %}<span class="badge {% if present %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ label }}: {% if present %}terdeteksi{% else %}belum terdeteksi{% endif %}</span>{% endfor %}</div>
+      <hr><b>Rekomendasi</b>{% if quality_result.recommendations %}<ul class="small mt-2">{% for item in quality_result.recommendations %}<li>{{ item }}</li>{% endfor %}</ul>{% else %}<p class="small mt-2">Tidak ada rekomendasi dasar dari pemeriksaan ini.</p>{% endif %}<p class="small text-muted mb-0">{{ quality_result.note }}</p>
+    </div>{% endif %}
+  </section></div>
+  <div class="col-lg-6"><section class="panel-card h-100">
+    <span class="eyebrow">FITUR ML 04</span><h2 class="h4 fw-bold mt-2">AI CV Consistency Checker</h2>
+    <p class="text-muted">Menggunakan NLP dan deteksi pola untuk menemukan beberapa kontak, rentang tanggal terbalik atau tumpang tindih, serta klaim durasi pengalaman yang perlu dikonfirmasi.</p>
+    <form method="post"><input type="hidden" name="action" value="cv_consistency">
+      <label class="form-label">Kandidat</label><select class="form-select mb-3" name="candidate_id" required><option value="">Pilih kandidat...</option>{% for c in candidates %}<option value="{{ c.id }}">{{ c.name }}{% if c.email %} — {{ c.email }}{% endif %}</option>{% endfor %}</select>
+      <button class="btn btn-primary" {% if not candidates %}disabled{% endif %}>Periksa konsistensi CV</button>
+    </form>
+    {% if consistency_result %}<div class="mt-4"><div class="d-flex justify-content-between align-items-center"><b>{{ consistency_result.candidate_name }}</b><span class="badge text-bg-light">{{ consistency_result.date_ranges_found }} rentang tanggal</span></div>
+      {% for flag in consistency_result.flags %}<div class="cluster-card mt-3"><div class="d-flex gap-2 align-items-start"><span class="badge {% if flag.level == 'warning' %}text-bg-warning{% elif flag.level == 'success' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if flag.level == 'warning' %}Periksa{% elif flag.level == 'success' %}Info{% else %}Catatan{% endif %}</span><div><b>{{ flag.title }}</b><p class="small text-muted mb-0 mt-1">{{ flag.detail }}</p></div></div></div>{% endfor %}
+      <p class="small text-muted mt-3 mb-0">{{ consistency_result.note }}</p>
+    </div>{% endif %}
+  </section></div>
+</div>
+
+{% endblock %}

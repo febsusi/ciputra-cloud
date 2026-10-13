@@ -14,7 +14,8 @@ from dotenv import load_dotenv
 
 from ai_engine import analyze_resume, extract_document_text, rank_resume, analyze_skill_gap, detect_duplicate_resumes, analyze_cv_quality, check_cv_consistency
 from firebase_store import FirebaseStore, FirebaseError
-from google_drive_storage import GoogleDriveStorage, GoogleDriveStorageError
+from supabase_storage import (SupabaseFileStorage, SupabaseStorageError,
+)
 
 load_dotenv()
 app = Flask(__name__)
@@ -36,15 +37,15 @@ app.config.update(
 )
 os.makedirs(app.config["SESSION_FILE_DIR"], mode=0o700, exist_ok=True)
 Session(app)
-# Trust only the single proxy hop used by Railway so url_for/HTTPS detection works correctly.
+
 if os.getenv("RAILWAY_ENVIRONMENT"):
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY", "")
 DB_URL = os.getenv("FIREBASE_DATABASE_URL", "").rstrip("/")
-GOOGLE_DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
+
 store = FirebaseStore(DB_URL)
-storage = GoogleDriveStorage(GOOGLE_DRIVE_FOLDER_ID)
+storage = SupabaseFileStorage()
 
 ALLOWED = {"pdf", "docx", "txt", "png", "jpg", "jpeg", "webp"}
 def allowed_file(name):
@@ -305,7 +306,7 @@ def delete_candidate(cid):
             storage.delete(candidate["storage_path"], id_token=current_user()["idToken"], uid=current_user()["localId"])
         db.delete(f"candidates/{cid}")
         flash("Kandidat dan file CV terkait dihapus.", "success")
-    except (FirebaseError, GoogleDriveStorageError) as e: flash(str(e), "danger")
+    except (FirebaseError, SupabaseStorageError) as e: flash(str(e), "danger")
     return redirect(url_for("candidates"))
 
 @app.route("/rank", methods=["GET", "POST"])
@@ -447,7 +448,7 @@ def hr_policy():
                     storage.delete(doc["storage_path"], id_token=current_user()["idToken"], uid=current_user()["localId"])
                 db.delete(f"hr_policy_docs/{doc_id}")
                 flash("Dokumen kebijakan dan file terkait dihapus.", "success")
-            except (FirebaseError, GoogleDriveStorageError) as e: flash(str(e), "danger")
+            except (FirebaseError, SupabaseStorageError) as e: flash(str(e), "danger")
             return redirect(url_for("hr_policy"))
         if action == "upload":
             file = request.files.get("policy_file")
@@ -558,4 +559,4 @@ def ml_tools():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")
+    app.run(), debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")

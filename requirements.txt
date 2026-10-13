@@ -14,3 +14,4 @@ gunicorn>=22,<24
 google-api-python-client>=2.130,<3.0
 google-auth>=2.29,<3.0
 google-auth-oauthlib>=1.2,<2.0
+supabase

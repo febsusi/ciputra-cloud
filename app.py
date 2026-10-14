@@ -12,7 +12,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_session import Session
 from dotenv import load_dotenv
 
-from ai_engine import analyze_resume, extract_document_text, rank_resume, analyze_skill_gap
+from ai_engine import analyze_resume, extract_document_text, rank_resume, analyze_skill_gap, detect_duplicate_resumes, analyze_cv_quality, check_cv_consistency
 from firebase_store import FirebaseStore, FirebaseError
 from supabase_storage import SupabaseStorage, SupabaseStorageError
 
@@ -521,7 +521,6 @@ def hr_policy():
 def too_large(_):
     flash("File terlalu besar. Maksimal 15 MB.", "danger")
     return redirect(request.referrer or url_for("candidates"))
-
 
 
 if __name__ == "__main__":

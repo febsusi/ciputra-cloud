@@ -35,12 +35,14 @@ app.config.update(
 )
 os.makedirs(app.config["SESSION_FILE_DIR"], mode=0o700, exist_ok=True)
 Session(app)
+# Trust only the single proxy hop used by Railway so url_for/HTTPS detection works correctly.
 if os.getenv("RAILWAY_ENVIRONMENT"):
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY", "")
 DB_URL = os.getenv("FIREBASE_DATABASE_URL", "").rstrip("/")
 
+# === SUPABASE STORAGE CONFIG ===
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("SUPABASE_KEY", "")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "hr-files")
@@ -364,10 +366,10 @@ def export_csv(rid):
     mem = io.BytesIO(output.getvalue().encode("utf-8-sig")); mem.seek(0)
     return send_file(mem, mimetype="text/csv", as_attachment=True, download_name=f"ranking_{secure_filename(item.get('job_title','job'))}.csv")
 
+
 @app.route("/hr-policy", methods=["GET", "POST"])
 @login_required
 def hr_policy():
-    """Document-grounded HR policy Q&A using TF-IDF retrieval (not generative)."""
     db = user_store()
     answer = None
     if request.method == "POST":

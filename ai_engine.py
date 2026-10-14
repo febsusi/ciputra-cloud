@@ -19,176 +19,43 @@ EDU_LEVELS = [
 
 
 def extract_document_text(raw_bytes, ext):
-    import os
-    import io
-    import shutil
-
-    ext = ext.lower().lstrip(".")
-
-    if not raw_bytes:
-        raise ValueError("File yang diunggah kosong.")
-
+    ext = ext.lower()
     if ext == "pdf":
         try:
             import pdfplumber
-
             with pdfplumber.open(io.BytesIO(raw_bytes)) as pdf:
-                text = "\n".join(
-                    page.extract_text() or "" for page in pdf.pages
-                )
-
+                text = "\n".join((p.extract_text() or "") for p in pdf.pages)
             if len(text.strip()) > 40:
                 return text[:30000]
-
         except Exception:
-            # Lanjut ke OCR jika ekstraksi teks PDF gagal.
             pass
-
+        # OCR fallback for scanned PDF
         try:
             from pdf2image import convert_from_bytes
             import pytesseract
-
-            executable = (
-                os.getenv("TESSERACT_CMD")
-                or shutil.which("tesseract")
-            )
-            if not executable or not os.path.isfile(executable):
-                raise RuntimeError("Executable Tesseract tidak ditemukan.")
-
-            pytesseract.pytesseract.tesseract_cmd = executable
-
-            images = convert_from_bytes(
-                raw_bytes,
-                first_page=1,
-                last_page=8,
-            )
-
-            text = "\n".join(
-                pytesseract.image_to_string(img, lang="eng+ind")
-                for img in images
-            )
-
-            if not text.strip():
-                raise RuntimeError(
-                    "OCR tidak menemukan teks pada PDF."
-                )
-
-            return text[:30000]
-
+            images = convert_from_bytes(raw_bytes, first_page=1, last_page=8)
+            return "\n".join(pytesseract.image_to_string(img) for img in images)[:30000]
         except Exception as e:
-            raise ValueError(
-                f"OCR PDF gagal: {type(e).__name__}: {e}. "
-                "Periksa Tesseract, bahasa eng/ind, dan Poppler."
-            ) from e
-
+            raise ValueError("PDF tampaknya hasil scan. OCR membutuhkan Tesseract dan Poppler terpasang.") from e
     if ext == "docx":
-        try:
-            from docx import Document
-
-            doc = Document(io.BytesIO(raw_bytes))
-            return "\n".join(
-                p.text for p in doc.paragraphs
-            )[:30000]
-
-        except Exception as e:
-            raise ValueError(
-                f"Gagal membaca DOCX: {type(e).__name__}: {e}"
-            ) from e
-
+        from docx import Document
+        doc = Document(io.BytesIO(raw_bytes))
+        return "\n".join(p.text for p in doc.paragraphs)[:30000]
     if ext == "txt":
-        return raw_bytes.decode(
-            "utf-8", errors="ignore"
-        )[:30000]
-
-    if ext in {"png", "jpg", "jpeg", "webp"}:
+        return raw_bytes.decode("utf-8", errors="ignore")[:30000]
+    if ext in {"png","jpg","jpeg","webp"}:
         try:
-            from PIL import Image, ImageOps, ImageEnhance
+            from PIL import Image
             import pytesseract
-            import numpy as np
-            import cv2
-
-            executable = (
-                os.getenv("TESSERACT_CMD")
-                or shutil.which("tesseract")
-            )
-
-            if not executable or not os.path.isfile(executable):
-                raise RuntimeError(
-                    "Executable Tesseract tidak ditemukan. "
-                    "Periksa instalasi Tesseract pada Railway."
-                )
-
-            pytesseract.pytesseract.tesseract_cmd = executable
-
-            # Verifikasi executable dapat dijalankan.
-            pytesseract.get_tesseract_version()
-
-            # Validasi dan normalisasi gambar.
-            with Image.open(io.BytesIO(raw_bytes)) as source:
-                image = ImageOps.exif_transpose(source)
-                image = image.convert("RGB")
-
-                # Hindari penggunaan memori berlebihan pada gambar besar.
-                image.thumbnail((2500, 2500))
-                image = ImageEnhance.Contrast(
-                    ImageOps.grayscale(image)
-                ).enhance(1.5)
-
-                arr = np.array(image)
-
-            # Threshold adaptif lebih fleksibel untuk dokumen
-            # dengan pencahayaan tidak merata.
-            processed = cv2.adaptiveThreshold(
-                arr,
-                255,
-                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY,
-                31,
-                11,
-            )
-
-            # Pilih bahasa berdasarkan data yang terpasang.
-            try:
-                languages = pytesseract.get_languages(config="")
-            except Exception:
-                languages = ["eng"]
-
-            lang = (
-                "eng+ind"
-                if "eng" in languages and "ind" in languages
-                else "eng"
-            )
-
-            text = pytesseract.image_to_string(
-                processed,
-                lang=lang,
-                config="--oem 3 --psm 6",
-                timeout=30,
-            )
-
-            # Fallback ke gambar grayscale jika threshold gagal.
-            if len(text.strip()) < 5:
-                text = pytesseract.image_to_string(
-                    arr,
-                    lang=lang,
-                    config="--oem 3 --psm 3",
-                    timeout=30,
-                )
-
-            if not text.strip():
-                raise RuntimeError(
-                    "Tesseract berjalan, tetapi teks tidak terdeteksi."
-                )
-
-            return text[:30000]
-
+            image = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
+            # Computer vision preprocessing: grayscale + contrast + threshold.
+            import cv2, numpy as np
+            arr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2GRAY)
+            arr = cv2.threshold(arr, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+            return pytesseract.image_to_string(arr)[:30000]
         except Exception as e:
-            raise ValueError(
-                f"OCR gambar gagal: {type(e).__name__}: {e}"
-            ) from e
-
+            raise ValueError("OCR gambar gagal. Pastikan OpenCV, Pillow, pytesseract dan Tesseract terpasang.") from e
     raise ValueError("Format file tidak didukung.")
-
 
 def clean(text):
     return re.sub(r"\s+", " ", (text or "").lower()).strip()
@@ -211,7 +78,6 @@ def extract_experience(text):
     for m in re.finditer(r"(\d+(?:[.,]\d+)?)\s*\+?\s*(?:years?|yrs?|tahun)\s+(?:of\s+)?(?:work\s+)?experience", t):
         try: vals.append(float(m.group(1).replace(",", ".")))
         except ValueError: pass
-    # Handle phrases such as "5 years experience"
     for m in re.finditer(r"(\d+(?:[.,]\d+)?)\s*(?:years?|yrs?|tahun)\s+(?:experience|pengalaman)", t):
         try: vals.append(float(m.group(1).replace(",", ".")))
         except ValueError: pass
@@ -249,10 +115,8 @@ def rank_resume(candidate, job):
     education_score = 100 if edu_level >= min_level else (max(0, 100 - (min_level-edu_level)*25))
     years = float(candidate.get("experience_years", 0) or 0)
     experience_score = min(years / 5 * 100, 100)
-    # Logistic Regression score over the four interpretable feature values.
-    # It is a demo baseline trained on transparent synthetic examples, not a
-    # hiring model trained on historical recruiter decisions. Replace the
-    # synthetic training rows with audited, consented labels for production.
+
+    
     import numpy as np
     from sklearn.linear_model import LogisticRegression
     features = np.array([[text_match, skill_match, education_score, experience_score]], dtype=float)
@@ -283,8 +147,6 @@ def rank_resume(candidate, job):
     }
 
 
-# ---------- Practical ML features: skill-gap analysis and duplicate CV detection ----------
-
 def analyze_skill_gap(candidate, job):
     """Compare a candidate CV with one vacancy and produce actionable skill gaps."""
     from sklearn.feature_extraction.text import TfidfVectorizer
@@ -313,155 +175,3 @@ def analyze_skill_gap(candidate, job):
             "suggestions": suggestions,
             "note": "Skill yang tidak terdeteksi di CV belum tentu tidak dikuasai; periksa CV dan lakukan wawancara sebelum mengambil keputusan."}
 
-
-def detect_duplicate_resumes(candidates, threshold=0.72):
-    """Find likely duplicate/near-duplicate CV text using TF-IDF and cosine similarity."""
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import cosine_similarity
-
-    rows = []
-    for candidate in candidates:
-        skills_value = candidate.get("skills", [])
-        skills_text = " ".join(skills_value) if isinstance(skills_value, list) else str(skills_value or "")
-        text = clean(" ".join([candidate.get("resume_text", "") or candidate.get("cv_text", ""), skills_text]))
-        if text:
-            rows.append((candidate, text))
-    if len(rows) < 2:
-        return {"pairs": [], "candidate_count": len(rows), "message": "Minimal dua CV dengan teks hasil ekstraksi diperlukan."}
-    vectorizer = TfidfVectorizer(ngram_range=(1, 2), max_features=15000, sublinear_tf=True)
-    matrix = vectorizer.fit_transform([x[1] for x in rows])
-    similarities = cosine_similarity(matrix)
-    pairs = []
-    for i in range(len(rows)):
-        for j in range(i + 1, len(rows)):
-            score = float(similarities[i, j])
-            if score >= threshold:
-                pairs.append({"name_a": rows[i][0].get("name", "Tanpa nama"),
-                              "email_a": rows[i][0].get("email", ""),
-                              "name_b": rows[j][0].get("name", "Tanpa nama"),
-                              "email_b": rows[j][0].get("email", ""),
-                              "similarity": round(score * 100, 2),
-                              "level": "Sangat mirip" if score >= 0.88 else "Perlu ditinjau"})
-    pairs.sort(key=lambda x: x["similarity"], reverse=True)
-    return {"pairs": pairs, "candidate_count": len(rows), "threshold": round(threshold * 100, 1),
-            "message": "Tidak ditemukan pasangan di atas ambang kemiripan. Ini bukan bukti pasti CV duplikat." if not pairs else "Pasangan ditampilkan berdasarkan kemiripan teks; periksa manual sebelum menggabungkan/menghapus data."}
-
-
-# ---------- Extra AI/NLP tools: CV quality and consistency review ----------
-
-def analyze_cv_quality(candidate):
-    """Heuristic NLP quality audit for one CV; outputs explainable signals, not hiring scores."""
-    text = candidate.get("resume_text", "") or candidate.get("cv_text", "")
-    normalized = clean(text)
-    words = re.findall(r"\b[\w+#.-]+\b", text)
-    word_count = len(words)
-    sections = {
-        "Kontak": bool(re.search(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", text) or re.search(r"(?:\+?\d[\d ()-]{7,}\d)", text)),
-        "Ringkasan / Profil": bool(re.search(r"\b(summary|profile|profil|about me|tentang saya|objective|career objective)\b", normalized)),
-        "Pengalaman": bool(re.search(r"\b(experience|employment|work history|pengalaman kerja|riwayat pekerjaan)\b", normalized)),
-        "Pendidikan": bool(re.search(r"\b(education|pendidikan|academic background|riwayat pendidikan)\b", normalized)),
-        "Skills": bool(re.search(r"\b(skills|technical skills|keahlian|kompetensi)\b", normalized)),
-        "Proyek / Sertifikasi": bool(re.search(r"\b(projects?|proyek|certifications?|sertifikasi|licenses?)\b", normalized)),
-    }
-    quantified = len(re.findall(r"\b\d+(?:[.,]\d+)?\s*(?:%|percent|persen|k|m|million|juta|years?|tahun|users?|records?|projects?|proyek|hours?|jam)\b", normalized))
-    action_verbs = ["developed", "built", "implemented", "improved", "reduced", "increased", "managed", "led", "created", "analyzed", "designed", "automated", "mengembangkan", "membangun", "menerapkan", "meningkatkan", "mengurangi", "memimpin", "menganalisis", "merancang", "mengotomatisasi"]
-    action_count = sum(1 for v in action_verbs if re.search(r"\b" + re.escape(v) + r"\b", normalized))
-    skills = extract_skills(text)
-    # Explainable 100-point rubric: sections 60, useful detail 20, action/results evidence 20.
-    section_score = round(60 * sum(sections.values()) / len(sections))
-    length_score = 20 if 250 <= word_count <= 1200 else (12 if 120 <= word_count < 250 or 1200 < word_count <= 1800 else 5)
-    evidence_score = min(10, quantified * 2) + min(10, action_count * 2)
-    score = min(100, section_score + length_score + evidence_score)
-    recommendations = []
-    for section, present in sections.items():
-        if not present:
-            recommendations.append(f"Pertimbangkan menambahkan bagian {section.lower()} jika relevan.")
-    if word_count < 250:
-        recommendations.append("CV relatif singkat; tambahkan konteks proyek, tanggung jawab, dan hasil yang dapat diverifikasi.")
-    elif word_count > 1800:
-        recommendations.append("CV cukup panjang; prioritaskan pengalaman dan pencapaian yang paling relevan.")
-    if quantified == 0:
-        recommendations.append("Tambahkan metrik yang benar-benar dapat dibuktikan, misalnya skala data, waktu proses, atau dampak hasil.")
-    if action_count < 2:
-        recommendations.append("Gunakan kata kerja tindakan yang spesifik untuk menjelaskan kontribusi pribadi.")
-    if not skills:
-        recommendations.append("Skill belum terdeteksi dari kamus aplikasi; tuliskan nama skill secara eksplisit jika memang dikuasai.")
-    return {"candidate_name": candidate.get("name", "Tanpa nama"), "score": score,
-            "word_count": word_count, "sections": sections, "sections_present": sum(sections.values()),
-            "section_total": len(sections), "skills": skills[:20], "quantified_evidence": quantified,
-            "action_verb_count": action_count, "recommendations": recommendations,
-            "note": "Skor memakai rubrik heuristik yang dapat dijelaskan, bukan prediksi keberhasilan kerja. Periksa CV asli sebelum menyimpulkan."}
-
-
-def check_cv_consistency(candidate):
-    """Flag potential CV inconsistencies for manual review; never labels a CV as fraudulent."""
-    text = candidate.get("resume_text", "") or candidate.get("cv_text", "")
-    normalized = clean(text)
-    flags = []
-    emails = sorted(set(re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", text)))
-    if len(emails) > 1:
-        flags.append({"level": "info", "title": "Beberapa alamat email ditemukan", "detail": "Email terdeteksi: " + ", ".join(emails[:5]) + ". Pastikan alamat kontak utama jelas."})
-    phones = sorted(set(re.findall(r"(?<!\w)(?:\+?\d[\d ()-]{7,}\d)(?!\w)", text)))
-    if len(phones) > 1:
-        flags.append({"level": "info", "title": "Beberapa nomor telepon ditemukan", "detail": f"Ditemukan {len(phones)} pola nomor telepon. Bisa jadi wajar; pastikan nomor kontak yang aktif ditandai."})
-
-    # Parse common month-year and year-only ranges (e.g. Jan 2020 - Mar 2022, 2021 - Present).
-    month_map = {m.lower(): i for i, m in enumerate(["January","February","March","April","May","June","July","August","September","October","November","December"], 1)}
-    month_map.update({m[:3].lower(): i for m, i in list(month_map.items()) if len(m) > 3})
-    month_pattern = r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(20\d{2})"
-    date_token = rf"(?:{month_pattern}|(20\d{{2}}))"
-    range_pattern = re.compile(rf"(?P<start>{date_token})\s*(?:-|–|—|to|through)\s*(?P<end>{date_token}|present|current|sekarang|now)", re.I)
-    def date_value(token, end=False):
-        t = token.strip().lower()
-        if t in {"present", "current", "sekarang", "now"}:
-            from datetime import datetime
-            d = datetime.now()
-            return d.year * 12 + d.month
-        year_match = re.search(r"20\d{2}", t)
-        if not year_match: return None
-        year = int(year_match.group())
-        mon_match = re.search(r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)", t, re.I)
-        month = 12 if end else 1
-        if mon_match:
-            key = mon_match.group(1).lower()[:3]
-            month = {"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,"jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12}.get(key, month)
-        return year * 12 + month
-    ranges = []
-    for m in range_pattern.finditer(text):
-        # Avoid accidentally treating numeric values elsewhere as a date range.
-        start, end = m.group("start"), m.group("end")
-        sv, ev = date_value(start), date_value(end, True)
-        if sv is not None and ev is not None and 1900 * 12 < sv < 2100 * 12 and 1900 * 12 < ev < 2100 * 12:
-            ranges.append((m.start(), m.end(), sv, ev, m.group(0)))
-    for item in ranges:
-        if item[3] < item[2]:
-            flags.append({"level": "warning", "title": "Rentang tanggal tampak terbalik", "detail": f"Periksa rentang '{item[4]}'; tanggal akhir terlihat lebih awal dari tanggal mulai."})
-    overlaps = []
-    for i, a in enumerate(ranges):
-        for b in ranges[i+1:]:
-            if a[2] <= b[3] and b[2] <= a[3] and a[4] != b[4]:
-                # Deduplicate identical/near-identical ranges and only flag if both ranges are distinct.
-                pair = tuple(sorted((a[4], b[4])))
-                if pair not in overlaps:
-                    overlaps.append(pair)
-                    flags.append({"level": "warning", "title": "Rentang tanggal pengalaman bertumpang tindih", "detail": f"'{a[4]}' dan '{b[4]}' tampak bertumpang tindih. Ini dapat wajar untuk pekerjaan paralel; verifikasi konteksnya."})
-    claimed = []
-    for m in re.finditer(r"(\d{1,2}(?:[.,]\d+)?)\s*\+?\s*(?:years?|yrs?|tahun)\s+(?:of\s+)?(?:work\s+)?experience|(?:pengalaman)\s+(\d{1,2}(?:[.,]\d+)?)\s*(?:tahun|years?)", normalized):
-        raw = next((x for x in m.groups() if x), None)
-        if raw:
-            try: claimed.append(float(raw.replace(",", ".")))
-            except ValueError: pass
-    inferred = None
-    if ranges:
-        starts = [r[2] for r in ranges if r[2] <= r[3]]
-        ends = [r[3] for r in ranges if r[2] <= r[3]]
-        if starts and ends:
-            inferred = round(max(0, (max(ends) - min(starts)) / 12), 1)
-    if claimed and inferred is not None and abs(max(claimed) - inferred) >= 3:
-        flags.append({"level": "warning", "title": "Klaim durasi pengalaman perlu dikonfirmasi", "detail": f"Teks menyebut sekitar {max(claimed):g} tahun pengalaman, sementara rentang tanggal yang terbaca mencakup sekitar {inferred:g} tahun kalender. Metode ini perkiraan kasar dan dapat menghitung jeda atau pekerjaan paralel."})
-    if not flags:
-        flags.append({"level": "success", "title": "Tidak ada pola inkonsistensi umum yang terdeteksi", "detail": "Ini tidak menjamin seluruh informasi benar; pemeriksaan hanya mencakup pola teks dan tanggal yang didukung."})
-    return {"candidate_name": candidate.get("name", "Tanpa nama"), "flags": flags,
-            "flag_count": sum(1 for f in flags if f["level"] == "warning"),
-            "date_ranges_found": len(ranges),
-            "note": "Semua temuan adalah sinyal untuk ditinjau manual. Tanggal yang tumpang tindih, beberapa kontak, atau perbedaan estimasi bukan bukti bahwa CV palsu."}

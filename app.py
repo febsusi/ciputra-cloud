@@ -19,7 +19,6 @@ from supabase_storage import SupabaseStorage, SupabaseStorageError
 
 load_dotenv()
 app = Flask(__name__)
-# Railway containers are ephemeral: uploaded originals belong in Supabase, not local disk.
 _secret = os.getenv("FLASK_SECRET_KEY")
 if not _secret and os.getenv("RAILWAY_ENVIRONMENT"):
     raise RuntimeError("FLASK_SECRET_KEY wajib diatur di Railway Variables.")
@@ -44,7 +43,6 @@ if os.getenv("RAILWAY_ENVIRONMENT"):
 FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY", "")
 DB_URL = os.getenv("FIREBASE_DATABASE_URL", "").rstrip("/")
 
-# === SUPABASE STORAGE CONFIG ===
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("SUPABASE_KEY", "")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "hr-files")
@@ -523,44 +521,6 @@ def hr_policy():
 def too_large(_):
     flash("File terlalu besar. Maksimal 15 MB.", "danger")
     return redirect(request.referrer or url_for("candidates"))
-
-@app.route("/ml-tools", methods=["GET", "POST"])
-@login_required
-def ml_tools():
-    db = user_store()
-    jobs_data = db.list("jobs")
-    candidates_data = db.list("candidates")
-    gap_result = None
-    duplicate_result = None
-    quality_result = None
-    consistency_result = None
-    if request.method == "POST":
-        action = request.form.get("action", "")
-        if action == "skill_gap":
-            job_id = request.form.get("job_id", "")
-            candidate_id = request.form.get("candidate_id", "")
-            job = next((x for x in jobs_data if x.get("id") == job_id), None)
-            candidate = next((x for x in candidates_data if x.get("id") == candidate_id), None)
-            if not job or not candidate:
-                flash("Pilih lowongan dan kandidat yang valid.", "warning")
-            else:
-                gap_result = analyze_skill_gap(candidate, job)
-        elif action == "duplicate_check":
-            duplicate_result = detect_duplicate_resumes(candidates_data)
-            if duplicate_result.get("message"):
-                flash(duplicate_result["message"], "info")
-        elif action in {"cv_quality", "cv_consistency"}:
-            candidate_id = request.form.get("candidate_id", "")
-            candidate = next((x for x in candidates_data if x.get("id") == candidate_id), None)
-            if not candidate:
-                flash("Pilih kandidat yang valid.", "warning")
-            elif action == "cv_quality":
-                quality_result = analyze_cv_quality(candidate)
-            else:
-                consistency_result = check_cv_consistency(candidate)
-    return render_template("ml_tools.html", jobs=jobs_data, candidates=candidates_data,
-                           gap_result=gap_result, duplicate_result=duplicate_result,
-                           quality_result=quality_result, consistency_result=consistency_result)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ except ImportError as e:
 
 
 class SupabaseStorageError(Exception):
+    pass    
 
 class SupabaseStorage:
     def __init__(self, url: str | None = None, key: str | None = None, bucket: str | None = None):

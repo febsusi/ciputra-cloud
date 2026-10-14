@@ -14,12 +14,12 @@ from dotenv import load_dotenv
 
 from ai_engine import analyze_resume, extract_document_text, rank_resume, analyze_skill_gap, detect_duplicate_resumes, analyze_cv_quality, check_cv_consistency
 from firebase_store import FirebaseStore, FirebaseError
-from supabase_storage import (SupabaseFileStorage, SupabaseStorageError,
-)
+# === GANTI GOOGLE DRIVE -> SUPABASE STORAGE ===
+from supabase_storage import SupabaseStorage, SupabaseStorageError
 
 load_dotenv()
 app = Flask(__name__)
-# Railway containers are ephemeral: uploaded originals belong in Google Drive, not local disk.
+# Railway containers are ephemeral: uploaded originals belong in Supabase, not local disk.
 _secret = os.getenv("FLASK_SECRET_KEY")
 if not _secret and os.getenv("RAILWAY_ENVIRONMENT"):
     raise RuntimeError("FLASK_SECRET_KEY wajib diatur di Railway Variables.")
@@ -37,15 +37,20 @@ app.config.update(
 )
 os.makedirs(app.config["SESSION_FILE_DIR"], mode=0o700, exist_ok=True)
 Session(app)
-
+# Trust only the single proxy hop used by Railway so url_for/HTTPS detection works correctly.
 if os.getenv("RAILWAY_ENVIRONMENT"):
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY", "")
 DB_URL = os.getenv("FIREBASE_DATABASE_URL", "").rstrip("/")
 
+# === SUPABASE STORAGE CONFIG ===
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("SUPABASE_KEY", "")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "hr-files")
+
 store = FirebaseStore(DB_URL)
-storage = SupabaseFileStorage()
+storage = SupabaseStorage(SUPABASE_URL, SUPABASE_KEY, SUPABASE_BUCKET)
 
 ALLOWED = {"pdf", "docx", "txt", "png", "jpg", "jpeg", "webp"}
 def allowed_file(name):
@@ -275,7 +280,7 @@ def add_candidate():
             except Exception:
                 storage.delete(storage_path, id_token=current_user()["idToken"], uid=current_user()["localId"])
                 raise
-            flash("Kandidat ditambahkan. File CV disimpan privat di Google Drive dan berhasil dianalisis AI.", "success")
+            flash("Kandidat ditambahkan. File CV disimpan privat di Supabase Storage dan berhasil dianalisis AI.", "success")
             return redirect(url_for("candidates"))
         except Exception as e:
             flash(f"Gagal memproses CV: {e}", "danger")
@@ -480,7 +485,7 @@ def hr_policy():
                         except Exception:
                             storage.delete(storage_path, id_token=current_user()["idToken"], uid=current_user()["localId"])
                             raise
-                        flash("Dokumen kebijakan tersimpan privat di Google Drive dan siap dicari.", "success")
+                        flash("Dokumen kebijakan tersimpan privat di Supabase Storage dan siap dicari.", "success")
                 except Exception as e: flash(f"Gagal membaca dokumen: {e}", "danger")
         elif action == "ask":
             question = request.form.get("question", "").strip()
@@ -559,8 +564,4 @@ def ml_tools():
 
 
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", "5000")),
-        debug=os.getenv("FLASK_DEBUG", "false").lower() == "true",
-    )
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")

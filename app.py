@@ -12,7 +12,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_session import Session
 from dotenv import load_dotenv
 
-from ai_engine import analyze_resume, extract_document_text, rank_resume, analyze_skill_gap, detect_duplicate_resumes, analyze_cv_quality, check_cv_consistency
+from ai_engine import analyze_resume, extract_document_text, rank_resume, analyze_skill_gap
 from firebase_store import FirebaseStore, FirebaseError
 from supabase_storage import SupabaseStorage, SupabaseStorageError
 

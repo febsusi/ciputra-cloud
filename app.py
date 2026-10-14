@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 
 from ai_engine import analyze_resume, extract_document_text, rank_resume, analyze_skill_gap, detect_duplicate_resumes, analyze_cv_quality, check_cv_consistency
 from firebase_store import FirebaseStore, FirebaseError
-# === GANTI GOOGLE DRIVE -> SUPABASE STORAGE ===
 from supabase_storage import SupabaseStorage, SupabaseStorageError
 
 load_dotenv()
@@ -36,7 +35,6 @@ app.config.update(
 )
 os.makedirs(app.config["SESSION_FILE_DIR"], mode=0o700, exist_ok=True)
 Session(app)
-# Trust only the single proxy hop used by Railway so url_for/HTTPS detection works correctly.
 if os.getenv("RAILWAY_ENVIRONMENT"):
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 

@@ -1,4 +1,3 @@
-# supabase_storage.py
 import os
 import logging
 
@@ -11,23 +10,8 @@ except ImportError as e:
 
 
 class SupabaseStorageError(Exception):
-    """Error khusus untuk operasi Supabase Storage."""
-
 
 class SupabaseStorage:
-    """
-    Wrapper sederhana untuk Supabase Storage dengan interface kompatibel
-    dengan GoogleDriveStorage (upload/delete) sehingga app.py tidak perlu
-    banyak berubah.
-
-    Struktur path:
-        {uid}/{category}/{object_id}/{filename}
-
-    Contoh:
-        abc123/resumes/xyz789/cv_budi.pdf
-        abc123/hr-policy/doc001/kebijakan.pdf
-    """
-
     def __init__(self, url: str | None = None, key: str | None = None, bucket: str | None = None):
         self.url = url or os.getenv("SUPABASE_URL", "").rstrip("/")
         self.key = (
@@ -45,9 +29,7 @@ class SupabaseStorage:
         self.client: Client = create_client(self.url, self.key)
         self._ensure_bucket()
 
-    # ---------- internal ----------
     def _ensure_bucket(self):
-        """Buat bucket bila belum ada (private)."""
         try:
             self.client.storage.get_bucket(self.bucket)
         except Exception:
@@ -66,7 +48,6 @@ class SupabaseStorage:
     def _build_path(self, uid: str, category: str, object_id: str, filename: str) -> str:
         return f"{uid}/{category}/{object_id}/{self._safe_name(filename)}"
 
-    # ---------- public API ----------
     def upload(
         self,
         uid: str,
@@ -75,9 +56,8 @@ class SupabaseStorage:
         original_filename: str,
         data: bytes,
         content_type: str = "application/octet-stream",
-        id_token: str | None = None,   # tidak dipakai, hanya untuk kompatibilitas
+        id_token: str | None = None,   
     ) -> str:
-        """Upload file, kembalikan storage path di Supabase."""
         path = self._build_path(uid, category, object_id, original_filename)
         try:
             self.client.storage.from_(self.bucket).upload(
@@ -93,17 +73,14 @@ class SupabaseStorage:
         return path
 
     def delete(self, path: str, id_token: str | None = None, uid: str | None = None) -> None:
-        """Hapus file dari Supabase Storage. Tidak error bila file tidak ada."""
         if not path:
             return
         try:
             self.client.storage.from_(self.bucket).remove([path])
         except Exception as e:
-            # Jangan crash proses utama; cukup catat.
             logging.warning(f"[SupabaseStorage] Gagal menghapus '{path}': {e}")
 
     def get_signed_url(self, path: str, expires_in: int = 3600) -> str | None:
-        """Buat signed URL sementara untuk file private."""
         if not path:
             return None
         try:
@@ -113,7 +90,6 @@ class SupabaseStorage:
             raise SupabaseStorageError(f"Gagal membuat signed URL: {e}")
 
     def download(self, path: str) -> bytes:
-        """Ambil isi file (untuk validasi/backup)."""
         try:
             return self.client.storage.from_(self.bucket).download(path)
         except Exception as e:

@@ -42,7 +42,6 @@ if os.getenv("RAILWAY_ENVIRONMENT"):
 FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY", "")
 DB_URL = os.getenv("FIREBASE_DATABASE_URL", "").rstrip("/")
 
-# === SUPABASE STORAGE CONFIG ===
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("SUPABASE_KEY", "")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "hr-files")

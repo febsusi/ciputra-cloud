@@ -4,7 +4,6 @@ class FirebaseError(Exception):
     pass
 
 class FirebaseStore:
-    """Small Firebase Realtime Database REST wrapper. Data is scoped by Firebase Auth UID."""
     def __init__(self, database_url, id_token=None, uid=None):
         self.database_url = (database_url or "").rstrip("/")
         self.id_token = id_token
@@ -27,7 +26,7 @@ class FirebaseStore:
                 if r.status_code in (401, 403):
                     raise FirebaseError(
                         "Firebase Realtime Database menolak akses (401/403 Permission denied). "
-                        "Pastikan URL database persis dari Firebase Console, Rules sudah di-Publish, "
+                        "Pastikan URL database persis dari Firebase Console, Rules sudah diPublish, "
                         "user sudah login dan email terverifikasi, serta token belum kedaluwarsa. "
                         f"Detail Firebase: {r.text[:180]}"
                     )

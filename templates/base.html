@@ -21,7 +21,7 @@
         <li class="nav-item"><a class="nav-link {% if request.endpoint in ['jobs','edit_job'] %}active{% endif %}" href="{{ url_for('jobs') }}">Lowongan</a></li>
         <li class="nav-item"><a class="nav-link {% if request.endpoint in ['candidates','add_candidate','edit_candidate'] %}active{% endif %}" href="{{ url_for('candidates') }}">Kandidat</a></li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.endpoint in ['rankings','ml_tools','hr_feedback','hr_policy'] %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">AI By Febriyeni</a>
+          <a class="nav-link dropdown-toggle {% if request.endpoint in ['rankings','hr_policy'] %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">AI By Febriyeni</a>
           <ul class="dropdown-menu dropdown-menu-end shadow border-0">
             <li><h6 class="dropdown-header">ANALYTICS & ASSISTANTS</h6></li>
             <li><a class="dropdown-item {% if request.endpoint == 'rank' %}selected{% endif %}" href="{{ url_for('rank') }}">AI Resume Ranker</a></li>

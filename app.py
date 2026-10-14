@@ -306,7 +306,7 @@ def add_candidate():
         email = request.form.get("email", "").strip()
         file = request.files.get("resume")
         if not name or not file or not file.filename or not allowed_file(file.filename):
-            flash("Nama dan file CV (PDF/DOCX/TXT/PNG/JPG/WEBP) wajib diisi.", "danger")
+            flash("Nama dan file CV (PDF/DOCX/TXT) wajib diisi.", "danger")
             return render_template("candidate_form.html", candidate=None)
         safe = secure_filename(file.filename)
         ext = safe.rsplit(".", 1)[1].lower()

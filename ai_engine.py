@@ -148,7 +148,6 @@ def rank_resume(candidate, job):
 
 
 def analyze_skill_gap(candidate, job):
-    """Compare a candidate CV with one vacancy and produce actionable skill gaps."""
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
 
@@ -167,7 +166,6 @@ def analyze_skill_gap(candidate, job):
     except ValueError:
         similarity = 0.0
     coverage = round(100 * len(matched) / len(required), 2) if required else 0.0
-    # Actionable recommendations based only on skills missing from the CV text.
     suggestions = [f"Jika benar dikuasai, tambahkan '{skill}' pada bagian Skills dan jelaskan contoh penggunaannya di pengalaman/proyek." for skill in missing[:8]]
     return {"candidate_name": candidate.get("name", "Tanpa nama"), "job_title": job.get("title", "Lowongan"),
             "matched_skills": matched, "missing_skills": missing, "skill_coverage": coverage,

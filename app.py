@@ -224,8 +224,6 @@ def logout():
     return redirect(url_for("login"))
 
 
-# ======================== JOBS ========================
-
 @app.route("/jobs", methods=["GET", "POST"])
 @login_required
 def jobs():

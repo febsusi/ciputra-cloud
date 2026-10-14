@@ -17,44 +17,178 @@ EDU_LEVELS = [
     ("d3", 1), ("diploma iii", 1), ("associate", 1), ("sma", 0), ("smk", 0), ("high school", 0)
 ]
 
+
 def extract_document_text(raw_bytes, ext):
-    ext = ext.lower()
+    import os
+    import io
+    import shutil
+
+    ext = ext.lower().lstrip(".")
+
+    if not raw_bytes:
+        raise ValueError("File yang diunggah kosong.")
+
     if ext == "pdf":
         try:
             import pdfplumber
+
             with pdfplumber.open(io.BytesIO(raw_bytes)) as pdf:
-                text = "\n".join((p.extract_text() or "") for p in pdf.pages)
+                text = "\n".join(
+                    page.extract_text() or "" for page in pdf.pages
+                )
+
             if len(text.strip()) > 40:
                 return text[:30000]
+
         except Exception:
+            # Lanjut ke OCR jika ekstraksi teks PDF gagal.
             pass
-        # OCR fallback for scanned PDF
+
         try:
             from pdf2image import convert_from_bytes
             import pytesseract
-            images = convert_from_bytes(raw_bytes, first_page=1, last_page=8)
-            return "\n".join(pytesseract.image_to_string(img) for img in images)[:30000]
+
+            executable = (
+                os.getenv("TESSERACT_CMD")
+                or shutil.which("tesseract")
+            )
+            if not executable or not os.path.isfile(executable):
+                raise RuntimeError("Executable Tesseract tidak ditemukan.")
+
+            pytesseract.pytesseract.tesseract_cmd = executable
+
+            images = convert_from_bytes(
+                raw_bytes,
+                first_page=1,
+                last_page=8,
+            )
+
+            text = "\n".join(
+                pytesseract.image_to_string(img, lang="eng+ind")
+                for img in images
+            )
+
+            if not text.strip():
+                raise RuntimeError(
+                    "OCR tidak menemukan teks pada PDF."
+                )
+
+            return text[:30000]
+
         except Exception as e:
-            raise ValueError("PDF tampaknya hasil scan. OCR membutuhkan Tesseract dan Poppler terpasang.") from e
+            raise ValueError(
+                f"OCR PDF gagal: {type(e).__name__}: {e}. "
+                "Periksa Tesseract, bahasa eng/ind, dan Poppler."
+            ) from e
+
     if ext == "docx":
-        from docx import Document
-        doc = Document(io.BytesIO(raw_bytes))
-        return "\n".join(p.text for p in doc.paragraphs)[:30000]
-    if ext == "txt":
-        return raw_bytes.decode("utf-8", errors="ignore")[:30000]
-    if ext in {"png","jpg","jpeg","webp"}:
         try:
-            from PIL import Image
-            import pytesseract
-            image = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
-            # Computer vision preprocessing: grayscale + contrast + threshold.
-            import cv2, numpy as np
-            arr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2GRAY)
-            arr = cv2.threshold(arr, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-            return pytesseract.image_to_string(arr)[:30000]
+            from docx import Document
+
+            doc = Document(io.BytesIO(raw_bytes))
+            return "\n".join(
+                p.text for p in doc.paragraphs
+            )[:30000]
+
         except Exception as e:
-            raise ValueError("OCR gambar gagal. Pastikan OpenCV, Pillow, pytesseract dan Tesseract terpasang.") from e
+            raise ValueError(
+                f"Gagal membaca DOCX: {type(e).__name__}: {e}"
+            ) from e
+
+    if ext == "txt":
+        return raw_bytes.decode(
+            "utf-8", errors="ignore"
+        )[:30000]
+
+    if ext in {"png", "jpg", "jpeg", "webp"}:
+        try:
+            from PIL import Image, ImageOps, ImageEnhance
+            import pytesseract
+            import numpy as np
+            import cv2
+
+            executable = (
+                os.getenv("TESSERACT_CMD")
+                or shutil.which("tesseract")
+            )
+
+            if not executable or not os.path.isfile(executable):
+                raise RuntimeError(
+                    "Executable Tesseract tidak ditemukan. "
+                    "Periksa instalasi Tesseract pada Railway."
+                )
+
+            pytesseract.pytesseract.tesseract_cmd = executable
+
+            # Verifikasi executable dapat dijalankan.
+            pytesseract.get_tesseract_version()
+
+            # Validasi dan normalisasi gambar.
+            with Image.open(io.BytesIO(raw_bytes)) as source:
+                image = ImageOps.exif_transpose(source)
+                image = image.convert("RGB")
+
+                # Hindari penggunaan memori berlebihan pada gambar besar.
+                image.thumbnail((2500, 2500))
+                image = ImageEnhance.Contrast(
+                    ImageOps.grayscale(image)
+                ).enhance(1.5)
+
+                arr = np.array(image)
+
+            # Threshold adaptif lebih fleksibel untuk dokumen
+            # dengan pencahayaan tidak merata.
+            processed = cv2.adaptiveThreshold(
+                arr,
+                255,
+                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY,
+                31,
+                11,
+            )
+
+            # Pilih bahasa berdasarkan data yang terpasang.
+            try:
+                languages = pytesseract.get_languages(config="")
+            except Exception:
+                languages = ["eng"]
+
+            lang = (
+                "eng+ind"
+                if "eng" in languages and "ind" in languages
+                else "eng"
+            )
+
+            text = pytesseract.image_to_string(
+                processed,
+                lang=lang,
+                config="--oem 3 --psm 6",
+                timeout=30,
+            )
+
+            # Fallback ke gambar grayscale jika threshold gagal.
+            if len(text.strip()) < 5:
+                text = pytesseract.image_to_string(
+                    arr,
+                    lang=lang,
+                    config="--oem 3 --psm 3",
+                    timeout=30,
+                )
+
+            if not text.strip():
+                raise RuntimeError(
+                    "Tesseract berjalan, tetapi teks tidak terdeteksi."
+                )
+
+            return text[:30000]
+
+        except Exception as e:
+            raise ValueError(
+                f"OCR gambar gagal: {type(e).__name__}: {e}"
+            ) from e
+
     raise ValueError("Format file tidak didukung.")
+
 
 def clean(text):
     return re.sub(r"\s+", " ", (text or "").lower()).strip()

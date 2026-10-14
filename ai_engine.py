@@ -17,7 +17,6 @@ EDU_LEVELS = [
     ("d3", 1), ("diploma iii", 1), ("associate", 1), ("sma", 0), ("smk", 0), ("high school", 0)
 ]
 
-
 def extract_document_text(raw_bytes, ext):
     ext = ext.lower()
     if ext == "pdf":
@@ -78,6 +77,7 @@ def extract_experience(text):
     for m in re.finditer(r"(\d+(?:[.,]\d+)?)\s*\+?\s*(?:years?|yrs?|tahun)\s+(?:of\s+)?(?:work\s+)?experience", t):
         try: vals.append(float(m.group(1).replace(",", ".")))
         except ValueError: pass
+    # Handle phrases such as "5 years experience"
     for m in re.finditer(r"(\d+(?:[.,]\d+)?)\s*(?:years?|yrs?|tahun)\s+(?:experience|pengalaman)", t):
         try: vals.append(float(m.group(1).replace(",", ".")))
         except ValueError: pass
@@ -146,7 +146,6 @@ def rank_resume(candidate, job):
         "explanation": explanation
     }
 
-
 def analyze_skill_gap(candidate, job):
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -172,4 +171,3 @@ def analyze_skill_gap(candidate, job):
             "text_similarity": similarity, "required_count": len(required), "matched_count": len(matched),
             "suggestions": suggestions,
             "note": "Skill yang tidak terdeteksi di CV belum tentu tidak dikuasai; periksa CV dan lakukan wawancara sebelum mengambil keputusan."}
-

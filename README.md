@@ -21,5 +21,4 @@ pip install -r requirements.txt
 - `SESSION_COOKIE_SECURE`: `true`.
 - `FIREBASE_API_KEY`: Web API key Firebase, bukan private key service account.
 - `FIREBASE_DATABASE_URL`: URL Realtime Database persis dari Firebase Console.
-- `GOOGLE_DRIVE_FOLDER_ID`: folder ID yang dicetak setup script.
-- `GOOGLE_DRIVE_TOKEN_JSON_B64`: seluruh nilai base64 yang dicetak setup script.
+- `SUPABASE_URL`

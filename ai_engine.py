@@ -28,7 +28,6 @@ def extract_document_text(raw_bytes, ext):
                 return text[:30000]
         except Exception:
             pass
-        # OCR fallback for scanned PDF
         try:
             from pdf2image import convert_from_bytes
             import pytesseract
@@ -47,7 +46,6 @@ def extract_document_text(raw_bytes, ext):
             from PIL import Image
             import pytesseract
             image = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
-            # Computer vision preprocessing: grayscale + contrast + threshold.
             import cv2, numpy as np
             arr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2GRAY)
             arr = cv2.threshold(arr, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
